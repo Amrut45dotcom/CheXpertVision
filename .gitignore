@@ -1,4 +1,4 @@
-# Dataset — too large for git
+# Dataset
 data/
 
 # Model checkpoints
@@ -18,5 +18,9 @@ logs/
 # Cache
 .cache/
 
-# Env variables
-.env/
+# Environment
+.env
+venv/
+
+# Untitled notebooks
+Untitled.ipynb
