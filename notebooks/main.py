@@ -1,15 +1,16 @@
 import os
-import time
-import pandas as pd
-import torch
-import torch.nn as nn
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, models
-from torch.optim import Adam
-from sklearn.model_selection import train_test_split
-from tqdm import tqdm
 import cv2
+import time
+import torch
+import numpy as np
+import pandas as pd
+import torch.nn as nn
+from tqdm import tqdm
+from torch.optim import Adam
+from sklearn.metrics import roc_auc_score
+from torchvision import transforms, models
+from torch.utils.data import Dataset, DataLoader
+from sklearn.model_selection import train_test_split
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGE_ROOT = os.path.join(BASE_DIR, "..", "data")
@@ -70,6 +71,9 @@ def train_one_epoch(model, loader, optimizer, criterion, device, scaler):
 def validate(model, loader, criterion, device):
     model.eval()
     total_loss = 0
+    all_preds = []
+    all_labels = []
+    
     with torch.no_grad():
         with torch.amp.autocast('cuda'):
             for images, labels in loader:
@@ -77,7 +81,24 @@ def validate(model, loader, criterion, device):
                 outputs = model(images)
                 loss = criterion(outputs, labels)
                 total_loss += loss.item()
-    return total_loss / len(loader)
+                
+                # collect for AUC
+                all_preds.append(torch.sigmoid(outputs).cpu().numpy())
+                all_labels.append(labels.cpu().numpy())
+    
+    all_preds = np.concatenate(all_preds)
+    all_labels = np.concatenate(all_labels)
+    
+    disease_cols = ["Atelectasis", "Cardiomegaly", "Consolidation", "Edema", "Pleural Effusion"]
+    aucs = {}
+    for i, col in enumerate(disease_cols):
+        try:
+            aucs[col] = roc_auc_score(all_labels[:, i], all_preds[:, i])
+        except ValueError:
+            aucs[col] = float('nan')  # in case only one class present
+    
+    mean_auc = np.nanmean(list(aucs.values()))
+    return total_loss / len(loader), aucs, mean_auc
 
 # =========================
 # Main Pipeline
@@ -131,17 +152,26 @@ def main():
     scaler = torch.amp.GradScaler('cuda') 
 
     # Training Loop
-    epochs = 5
+    best_auc = 0
+    epochs = 15
     for epoch in range(epochs):
         start_time = time.time()
         t_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, scaler)
-        v_loss = validate(model, val_loader, criterion, device)
-        
+        v_loss, aucs, mean_auc = validate(model, val_loader, criterion, device)
         duration = (time.time() - start_time) / 60
-        print(f"Epoch {epoch+1} | Train Loss: {t_loss:.4f} | Val Loss: {v_loss:.4f} | Time: {duration:.2f} min")
 
-        # Save Checkpoint
-        torch.save(model.state_dict(), f"effnet_b0_epoch_{epoch+1}.pth")
+        print(f"Epoch {epoch+1} | Train Loss: {t_loss:.4f} | Val Loss: {v_loss:.4f} | Mean AUC: {mean_auc:.4f} | Time: {duration:.2f} min")
+        for k, v in aucs.items():
+            print(f"  {k}: {v:.4f}")
 
+    
+    if mean_auc > best_auc:
+        best_auc = mean_auc
+        torch.save(model.state_dict(), "effnet_b0_best.pth")
+        print(f"  → Best model saved (AUC: {best_auc:.4f})")
+
+    # Save checkpoint every epoch regardless
+    torch.save(model.state_dict(), f"effnet_b0_epoch_{epoch+1}.pth")
+        
 if __name__ == "__main__":
     main()
