@@ -146,8 +146,17 @@ def main():
     
     device = torch.device("cuda")
     model = model.to(device)
+
+    disease_cols = ["Atelectasis", "Cardiomegaly", "Consolidation", "Edema", "Pleural Effusion"]
+    pos_weight = []
+    for col in disease_cols:
+        pos = (train_data[col] == 1).sum()
+        neg = (train_data[col] == 0).sum()
+        pos_weight.append(neg / pos)
+
+    pos_weight = torch.tensor(pos_weight, dtype=torch.float32).to(device)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     
-    criterion = nn.BCEWithLogitsLoss()
     optimizer = Adam(model.parameters(), lr=1e-4)
     scaler = torch.amp.GradScaler('cuda') 
 
