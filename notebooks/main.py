@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import pandas as pd
 import torch.nn as nn
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from torch.optim import Adam
 from sklearn.metrics import roc_auc_score
@@ -42,9 +43,14 @@ class CheXpertDataset(Dataset):
 
         if self.transform:
             image = self.transform(image)
+        else:
+            image = transforms.Compose([
+                transforms.ToPILImage(),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5330], std=[0.0349])
+            ])(image)
 
         return image, torch.tensor(self.labels[idx])
-
 # =========================
 # Training Functions
 # =========================
@@ -67,6 +73,7 @@ def train_one_epoch(model, loader, optimizer, criterion, device, scaler):
         total_loss += loss.item()
         pbar.set_postfix(loss=f"{loss.item():.4f}")
     return total_loss / len(loader)
+
 
 def validate(model, loader, criterion, device):
     model.eval()
@@ -155,7 +162,8 @@ def main():
         pos_weight.append(neg / pos)
 
     pos_weight = torch.tensor(pos_weight, dtype=torch.float32).to(device)
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    criterion_train = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    criterion_val = nn.BCEWithLogitsLoss()
     
     optimizer = Adam(model.parameters(), lr=1e-4)
     scaler = torch.amp.GradScaler('cuda') 
@@ -165,13 +173,14 @@ def main():
     epochs = 15
     for epoch in range(epochs):
         start_time = time.time()
-        t_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, scaler)
-        v_loss, aucs, mean_auc = validate(model, val_loader, criterion, device)
+        t_loss = train_one_epoch(model, train_loader, optimizer, criterion_train, device, scaler)
+        v_loss, aucs, mean_auc = validate(model, val_loader, criterion_val, device)
         duration = (time.time() - start_time) / 60
-
+        
         print(f"Epoch {epoch+1} | Train Loss: {t_loss:.4f} | Val Loss: {v_loss:.4f} | Mean AUC: {mean_auc:.4f} | Time: {duration:.2f} min")
         for k, v in aucs.items():
             print(f"  {k}: {v:.4f}")
+   
 
     
     if mean_auc > best_auc:
