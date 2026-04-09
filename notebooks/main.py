@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import pandas as pd
 import torch.nn as nn
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from torch.optim import Adam
 from sklearn.metrics import roc_auc_score
@@ -100,21 +101,21 @@ def validate(model, loader, criterion, device):
     return total_loss / len(loader), aucs, mean_auc
 
 #FUNCRTION DEFINITION FOR LOSS CURVE
-# def plot_loss_curves(train_losses, val_losses, save_path):
-#     epochs = range(1, len(train_losses) + 1)
+def plot_loss_curves(train_losses, val_losses, save_path):
+    epochs = range(1, len(train_losses) + 1)
     
-#     plt.figure(figsize=(10, 6))
-#     plt.plot(epochs, train_losses, 'b-o', label='Train Loss', linewidth=2, markersize=4)
-#     plt.plot(epochs, val_losses, 'r-o', label='Val Loss', linewidth=2, markersize=4)
-#     plt.title('Training vs Validation Loss', fontsize=14)
-#     plt.xlabel('Epoch')
-#     plt.ylabel('Loss')
-#     plt.legend()
-#     plt.grid(True, alpha=0.3)
-#     plt.tight_layout()
-#     plt.savefig(save_path, dpi=150)
-#     plt.show()
-#     print(f"Loss curve saved to {save_path}")
+    plt.figure(figsize=(10, 6))
+    plt.plot(epochs, train_losses, 'b-o', label='Train Loss', linewidth=2, markersize=4)
+    plt.plot(epochs, val_losses, 'r-o', label='Val Loss', linewidth=2, markersize=4)
+    plt.title('Training vs Validation Loss', fontsize=14)
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150)
+    plt.show()
+    print(f"Loss curve saved to {save_path}")
 
 # =========================
 # Main Pipeline
@@ -185,7 +186,7 @@ def main():
     pos_weight = torch.tensor(pos_weight, dtype=torch.float32).to(device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     
-    optimizer = Adam(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
     scaler = torch.amp.GradScaler('cuda')
 
     # Training Loop
@@ -221,13 +222,15 @@ def main():
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'val_auc': mean_auc,
+            'train_losses': train_losses,
+            'val_losses': val_losses,
         }, os.path.join(CHECKPOINT_DIR, f"effnet_b0_epoch_{epoch+1:02d}.pth"))
 
     # Plot loss curves
-    # plot_loss_curves(
-    #     train_losses, val_losses,
-    #     save_path=os.path.join(CHECKPOINT_DIR, "effnet_b0_loss_curve.png")
-    # )
+    plot_loss_curves(
+        train_losses, val_losses,
+        save_path=os.path.join(CHECKPOINT_DIR, "effnet_b0_loss_curve.png")
+    )
 
 if __name__ == "__main__":
     main()
