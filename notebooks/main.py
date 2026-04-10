@@ -15,6 +15,8 @@ from sklearn.model_selection import train_test_split
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGE_ROOT = os.path.join(BASE_DIR, "..", "data")
+PROJECT_ROOT = os.path.dirname(BASE_DIR)  # goes up from notebooks/ to PROJECT_XRAY/
+CHECKPOINT_DIR = os.path.join(PROJECT_ROOT, "checkpoints")
 
 # =========================
 # Dataset
@@ -123,7 +125,6 @@ def plot_loss_curves(train_losses, val_losses, save_path):
 def main():
     torch.backends.cudnn.benchmark = True
 
-    CHECKPOINT_DIR = "/content/drive/MyDrive/chexpert_checkpoints"
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
     df = pd.read_csv(os.path.join(BASE_DIR, "..", "data", "train.csv"))
@@ -149,6 +150,7 @@ def main():
         transforms.ToPILImage(),
         transforms.RandomRotation(degrees=10),
         transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.RandomResizedCrop(size=224, scale=(0.85, 1.0)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5330, 0.5330, 0.5330], std=[0.0349, 0.0349, 0.0349])
     ])
@@ -199,6 +201,8 @@ def main():
         start_time = time.time()
         t_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, scaler)
         v_loss, aucs, mean_auc = validate(model, val_loader, criterion, device)
+        train_losses.append(t_loss) 
+        val_losses.append(v_loss)    
         duration = (time.time() - start_time) / 60
 
         print(f"Epoch {epoch+1} | Train Loss: {t_loss:.4f} | Val Loss: {v_loss:.4f} | Mean AUC: {mean_auc:.4f} | Time: {duration:.2f} min")
