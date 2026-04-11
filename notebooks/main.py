@@ -217,7 +217,7 @@ def main():
     
     scaler = torch.amp.GradScaler('cuda')
     warmup = LinearLR(optimizer, start_factor=0.1, end_factor=1.0, total_iters=500)
-    cosine = CosineAnnealingLR(optimizer, T_max=15, eta_min=1e-6)
+    cosine = CosineAnnealingLR(optimizer, T_max=25, eta_min=1e-6)
     scheduler = SequentialLR(optimizer, schedulers=[warmup, cosine], milestones=[500])
 
 
@@ -225,7 +225,7 @@ def main():
     best_auc = 0
     patience_counter = 0
     PATIENCE = 3
-    MAX_EPOCHS = 15 
+    MAX_EPOCHS = 25 
     epochs = MAX_EPOCHS
     train_losses = []
     val_losses = []
