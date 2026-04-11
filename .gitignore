@@ -24,3 +24,8 @@ venv/
 
 # Untitled notebooks
 Untitled.ipynb
+
+
+checkpoints/
+*.png
+.python-version
