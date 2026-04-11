@@ -12,6 +12,8 @@ from sklearn.metrics import roc_auc_score
 from torchvision import transforms, models
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
+from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, SequentialLR
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGE_ROOT = os.path.join(BASE_DIR, "..", "data")
@@ -102,6 +104,19 @@ def validate(model, loader, criterion, device):
     mean_auc = np.nanmean(list(aucs.values()))
     return total_loss / len(loader), aucs, mean_auc
 
+def mc_dropout_predict(model, images, device, n_runs=10):
+    model.train()   # keeps dropout active
+    preds = []
+    with torch.no_grad():
+        for _ in range(n_runs):
+            with torch.amp.autocast('cuda'):
+                outputs = torch.sigmoid(model(images.to(device)))
+            preds.append(outputs.cpu().numpy())
+    preds = np.stack(preds)             # shape: (n_runs, batch, 5)
+    mean_pred = preds.mean(axis=0)
+    uncertainty = preds.std(axis=0)
+    return mean_pred, uncertainty
+
 #FUNCRTION DEFINITION FOR LOSS CURVE
 def plot_loss_curves(train_losses, val_losses, save_path):
     epochs = range(1, len(train_losses) + 1)
@@ -172,7 +187,10 @@ def main():
 
     # Model
     model = models.efficientnet_b0(weights="IMAGENET1K_V1")
-    model.classifier[1] = nn.Linear(model.classifier[1].in_features, 5)
+    model.classifier = nn.Sequential(
+        nn.Dropout(p=0.4),           
+        nn.Linear(1280, 5)
+    )
     
     device = torch.device("cuda")
     model = model.to(device)
@@ -187,13 +205,28 @@ def main():
 
     pos_weight = torch.tensor(pos_weight, dtype=torch.float32).to(device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+
+    backbone_params = list(model.features.parameters())
+    classifier_params = list(model.classifier.parameters())
+
+    optimizer = torch.optim.AdamW([
+        {'params': backbone_params, 'lr': 1e-5},
+        {'params': classifier_params, 'lr': 1e-4}   
+    ], weight_decay=1e-4)
     
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
+    
     scaler = torch.amp.GradScaler('cuda')
+    warmup = LinearLR(optimizer, start_factor=0.1, end_factor=1.0, total_iters=500)
+    cosine = CosineAnnealingLR(optimizer, T_max=15, eta_min=1e-6)
+    scheduler = SequentialLR(optimizer, schedulers=[warmup, cosine], milestones=[500])
+
 
     # Training Loop
     best_auc = 0
-    epochs = 8
+    patience_counter = 0
+    PATIENCE = 3
+    MAX_EPOCHS = 15 
+    epochs = MAX_EPOCHS
     train_losses = []
     val_losses = []
 
@@ -201,17 +234,17 @@ def main():
         start_time = time.time()
         t_loss = train_one_epoch(model, train_loader, optimizer, criterion, device, scaler)
         v_loss, aucs, mean_auc = validate(model, val_loader, criterion, device)
-        train_losses.append(t_loss) 
-        val_losses.append(v_loss)    
+        train_losses.append(t_loss)
+        val_losses.append(v_loss)
         duration = (time.time() - start_time) / 60
 
         print(f"Epoch {epoch+1} | Train Loss: {t_loss:.4f} | Val Loss: {v_loss:.4f} | Mean AUC: {mean_auc:.4f} | Time: {duration:.2f} min")
         for k, v in aucs.items():
             print(f"  {k}: {v:.4f}")
 
-        # Save best model
         if mean_auc > best_auc:
             best_auc = mean_auc
+            patience_counter = 0
             torch.save({
                 'epoch': epoch + 1,
                 'model_state_dict': model.state_dict(),
@@ -219,17 +252,15 @@ def main():
                 'val_auc': best_auc,
             }, os.path.join(CHECKPOINT_DIR, "effnet_b0_best.pth"))
             print(f"  → Best model saved (AUC: {best_auc:.4f})")
-
-        # Save checkpoint every epoch
-        torch.save({
-            'epoch': epoch + 1,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'val_auc': mean_auc,
-            'train_losses': train_losses,
-            'val_losses': val_losses,
-        }, os.path.join(CHECKPOINT_DIR, f"effnet_b0_epoch_{epoch+1:02d}.pth"))
-
+        else:
+            patience_counter += 1
+            print(f"  → No improvement. Patience: {patience_counter}/{PATIENCE}")
+            if patience_counter >= PATIENCE:
+                print(f"Early stopping triggered at epoch {epoch+1}")
+                break
+        scheduler.step()  
+    
+    
     # Plot loss curves
     plot_loss_curves(
         train_losses, val_losses,
