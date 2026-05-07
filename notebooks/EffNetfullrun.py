@@ -147,11 +147,9 @@ def main():
     df["Path"] = df["Path"].str.replace("CheXpert-v1.0-small/", "", regex=False)
     df["PatientID"] = df["Path"].apply(lambda x: x.split("/")[1])
 
-    patients = df["PatientID"].unique()
-    keep_patients, _ = train_test_split(patients, test_size=0.50, random_state=42)
-    df = df[df["PatientID"].isin(keep_patients)]
+    patients = df["PatientID"].unique().to_numpy()
 
-    train_patients, temp_patients = train_test_split(keep_patients, test_size=0.30, random_state=42)
+    train_patients, temp_patients = train_test_split(patients, test_size=0.30, random_state=42)
     val_patients, test_patients = train_test_split(temp_patients, test_size=0.50, random_state=42)
 
     train_data = df[df["PatientID"].isin(train_patients)]
