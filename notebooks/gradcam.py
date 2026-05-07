@@ -33,7 +33,7 @@ print("Thresholds loaded:", THRESHOLDS)
 
 # ── Model ────────────────────────────────────────────────────────────────────
 def build_model():
-    model = models.densenet121(pretrained=False)
+    model = models.densenet121(weights=None)
     model.classifier = nn.Sequential(
         nn.Dropout(0.4),
         nn.Linear(1024, len(CLASSES))
@@ -52,8 +52,7 @@ print("Model loaded.")
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406],
-                         [0.229, 0.224, 0.225]),
+    transforms.Normalize(mean=[0.5330, 0.5330, 0.5330], std=[0.0349, 0.0349, 0.0349]),
 ])
 
 # ── Grad-CAM ─────────────────────────────────────────────────────────────────

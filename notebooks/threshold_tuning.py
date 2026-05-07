@@ -114,6 +114,7 @@ def main():
     train_patients, temp_patients = train_test_split(patients, test_size=0.30, random_state=42)
     val_patients, test_patients   = train_test_split(temp_patients, test_size=0.50, random_state=42)
     test_data = df[df["PatientID"].isin(test_patients)]
+    val_data = df[df["PatientID"].isin(val_patients)]
     print(f"Test set size: {len(test_data)}")
 
     # ── Transform ─────────────────────────────────────────────────────────────
@@ -140,16 +141,19 @@ def main():
     model.load_state_dict(checkpoint['model_state_dict'])
     print(f"Loaded checkpoint — Val AUC at save time: {checkpoint['val_auc']:.4f}")
 
-    # ── Run ───────────────────────────────────────────────────────────────────
-    preds, labels = run_inference(model, test_loader, device)
-    thresholds = find_optimal_thresholds(preds, labels)
-    evaluate_with_thresholds(preds, labels, thresholds)
 
-    # ── Save thresholds ───────────────────────────────────────────────────────
-    thresh_df = pd.DataFrame([thresholds])
-    save_path = os.path.join(CHECKPOINT_DIR, "optimal_thresholds.csv")
-    thresh_df.to_csv(save_path, index=False)
-    print(f"\nThresholds saved to {save_path}")
+    # ── Tune thresholds on VAL set ────────────────────────────────────────────
+    val_loader = DataLoader(
+        CheXpertDataset(val_data, IMAGE_ROOT, test_transform),
+        batch_size=BATCH_SIZE, shuffle=False,
+        num_workers=4, pin_memory=True
+    )
+    val_preds, val_labels = run_inference(model, val_loader, device)
+    thresholds = find_optimal_thresholds(val_preds, val_labels)
+
+# ── Evaluate on TEST set ──────────────────────────────────────────────────
+    test_preds, test_labels = run_inference(model, test_loader, device)
+    evaluate_with_thresholds(test_preds, test_labels, thresholds)
 
 
 if __name__ == "__main__":
