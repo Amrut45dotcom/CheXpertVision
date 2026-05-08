@@ -11,15 +11,15 @@ import pandas as pd
 import cv2
 
 # ── Config ──────────────────────────────────────────────────────────────────
-CHECKPOINT  = os.path.expanduser("~/project_xray/Project_XRay/checkpoints/densenet121_full_final.pth")
-THRESH_CSV  = os.path.expanduser("~/project_xray/Project_XRay/checkpoints/optimal_thresholds.csv")
-OUTPUT_DIR  = os.path.expanduser("~/project_xray/Project_XRay/results/gradcam")
+CHECKPOINT  = os.path.expanduser("/data/b23_himanshu_shekhar/amr/project_xray_ssh - Copy/checkpoints/densenet121_full_final.pth")
+THRESH_CSV  = os.path.expanduser("/data/b23_himanshu_shekhar/amr/project_xray_ssh - Copy/checkpoints/optimal_thresholds.csv")
+OUTPUT_DIR  = os.path.expanduser("/data/b23_himanshu_shekhar/amr/project_xray_ssh - Copy/results/gradcam")
 CLASSES     = ["Atelectasis", "Cardiomegaly", "Consolidation", "Edema", "Pleural Effusion"]
 
 IMAGE_PATHS = [
-    "/data/b23_himanshu_shekhar/project_xray/Project_XRay/data/valid/patient64693/study1/view1_frontal.jpg",
-    "/data/b23_himanshu_shekhar/project_xray/Project_XRay/data/valid/patient64559/study1/view1_frontal.jpg",
-    "/data/b23_himanshu_shekhar/project_xray/Project_XRay/data/valid/patient64570/study1/view1_frontal.jpg",
+    "/data/b23_himanshu_shekhar/amr/project_xray_ssh - Copy/data/valid/patient64541/study1/view1_frontal.jpg",
+    "/data/b23_himanshu_shekhar/amr/project_xray_ssh - Copy/data/valid/patient64542/study1/view1_frontal.jpg",
+    "/data/b23_himanshu_shekhar/amr/project_xray_ssh - Copy/data/valid/patient64543/study1/view1_frontal.jpg",
 ]
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
