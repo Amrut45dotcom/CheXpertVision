@@ -187,7 +187,7 @@ def main():
 
     # ── Data ──────────────────────────────────────────────────────────────────
     df = pd.read_csv(os.path.join(BASE_DIR, "..", "data", "train.csv"))
-    df = df.fillna(0).replace(-1.0, 1.0)
+    df = df.fillna(0).replace(-1.0, 0.0)  # Treat uncertain as negative
     df["Path"] = df["Path"].str.replace("CheXpert-v1.0-small/", "", regex=False)
     df["PatientID"] = df["Path"].apply(lambda x: x.split("/")[1])
 
@@ -279,7 +279,7 @@ def main():
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_auc': best_auc,
                 'aucs': aucs,
-            }, os.path.join(CHECKPOINT_DIR, "densenet121_full_final.pth"))
+            }, os.path.join(CHECKPOINT_DIR, "densenet121_full_uzeros.pth"))
             print(f"  → Best model saved (AUC: {best_auc:.4f})")
         else:
             epochs_no_improve += 1
@@ -296,13 +296,13 @@ def main():
             'val_auc': mean_auc,
             'train_losses': train_losses,
             'val_losses': val_losses,
-        }, os.path.join(CHECKPOINT_DIR, f"{MODEL_NAME}_epoch_{epoch+1:02d}.pth"))
+        }, os.path.join(CHECKPOINT_DIR, f"{MODEL_NAME}uzeros_epoch_{epoch+1:02d}.pth"))
 
     print(f"\nTraining complete. Best AUC: {best_auc:.4f}")
 
     plot_loss_curves(
         train_losses, val_losses,
-        save_path=os.path.join(CHECKPOINT_DIR, f"{MODEL_NAME}_loss_curve.png")
+        save_path=os.path.join(CHECKPOINT_DIR, f"{MODEL_NAME}_loss_curve_uzeros.png")
     )
 
 
